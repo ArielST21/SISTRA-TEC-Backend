@@ -1,6 +1,6 @@
 const { Router } = require('express');
-const { register } = require('../controllers/auth.controller');
-const { reglasRegistro } = require('../../validators/auth.validator');
+const { register, login, refresh } = require('../controllers/auth.controller');
+const { reglasRegistro, reglasLogin } = require('../../validators/auth.validator');
 const { validar } = require('../middlewares/validar.middleware');
 const { limitadorAuth } = require('../middlewares/rate-limit.middleware');
 
@@ -126,5 +126,149 @@ const router = Router();
  *         $ref: '#/components/responses/ErrorServidor'
  */
 router.post('/register', limitadorAuth, reglasRegistro, validar, register);
+
+/**
+ * @swagger
+ * /auth/login:
+ *   post:
+ *     summary: Iniciar sesión
+ *     description: >
+ *       Autentica a un usuario con correo y contraseña. Devuelve el usuario
+ *       y un par de tokens JWT (access + refresh). El error es genérico
+ *       (no revela si el correo existe) para evitar enumeración de usuarios.
+ *     tags:
+ *       - Público
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: maria.fernandez@example.com
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 example: MiClave123
+ *     responses:
+ *       200:
+ *         description: Sesión iniciada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/RespuestaExito'
+ *                 - type: object
+ *                   properties:
+ *                     datos:
+ *                       type: object
+ *                       properties:
+ *                         usuario:
+ *                           $ref: '#/components/schemas/Usuario'
+ *                         accessToken:
+ *                           type: string
+ *                           description: JWT de acceso (válido 15 minutos)
+ *                           example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *                         refreshToken:
+ *                           type: string
+ *                           description: JWT de refresco (válido 7 días)
+ *                           example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *       400:
+ *         $ref: '#/components/responses/ErrorValidacion'
+ *       401:
+ *         description: Credenciales incorrectas
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/RespuestaError'
+ *             example:
+ *               exito: false
+ *               mensaje: Correo o contraseña incorrectos
+ *               datos: null
+ *               error:
+ *                 codigo: CREDENCIALES_INVALIDAS
+ *                 detalle: null
+ *       403:
+ *         description: Cuenta desactivada
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/RespuestaError'
+ *             example:
+ *               exito: false
+ *               mensaje: Esta cuenta ha sido desactivada
+ *               datos: null
+ *               error:
+ *                 codigo: CUENTA_INACTIVA
+ *                 detalle: null
+ *       500:
+ *         $ref: '#/components/responses/ErrorServidor'
+ */
+router.post('/login', limitadorAuth, reglasLogin, validar, login);
+
+/**
+ * @swagger
+ * /auth/refresh:
+ *   post:
+ *     summary: Renovar access token
+ *     description: >
+ *       Recibe un refresh token válido y devuelve un nuevo access token.
+ *       Usar cuando el access token expire (cada 15 minutos).
+ *       El refresh token no cambia (válido 7 días desde su emisión).
+ *     tags:
+ *       - Público
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - refreshToken
+ *             properties:
+ *               refreshToken:
+ *                 type: string
+ *                 description: Refresh token obtenido en login o register
+ *                 example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *     responses:
+ *       200:
+ *         description: Token renovado exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/RespuestaExito'
+ *                 - type: object
+ *                   properties:
+ *                     datos:
+ *                       type: object
+ *                       properties:
+ *                         accessToken:
+ *                           type: string
+ *                           description: Nuevo JWT de acceso (válido 15 minutos)
+ *                           example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *       401:
+ *         description: Refresh token inválido o expirado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/RespuestaError'
+ *             example:
+ *               exito: false
+ *               mensaje: El token de refresco es inválido o ha expirado
+ *               datos: null
+ *               error:
+ *                 codigo: REFRESH_TOKEN_INVALIDO
+ *                 detalle: null
+ *       500:
+ *         $ref: '#/components/responses/ErrorServidor'
+ */
+router.post('/refresh', refresh);
 
 module.exports = router;

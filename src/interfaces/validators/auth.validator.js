@@ -38,4 +38,15 @@ const reglasRegistro = [
     }),
 ];
 
-module.exports = { reglasRegistro };
+const reglasLogin = [
+  body('email')
+    .trim()
+    .notEmpty().withMessage('El correo electrónico es obligatorio')
+    .isEmail().withMessage('Debe ser un correo electrónico válido')
+    .normalizeEmail(),
+
+  body('password')
+    .notEmpty().withMessage('La contraseña es obligatoria'),
+];
+
+module.exports = { reglasRegistro, reglasLogin };
