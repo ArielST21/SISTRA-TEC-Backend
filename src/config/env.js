@@ -43,6 +43,19 @@ const env = {
     .split(',')
     .map((origen) => origen.trim())
     .filter(Boolean),
+
+  smtp: {
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT || '465', 10),
+    secure: process.env.SMTP_SECURE !== 'false',
+    user: process.env.SMTP_USER || '',
+    password: process.env.SMTP_PASSWORD || '',
+    from: process.env.SMTP_FROM || 'SISTRA-TEC <no-reply@sistratec.cr>',
+  },
+
+  passwordReset: {
+    codeTtlMinutes: parseInt(process.env.PASSWORD_RESET_TTL_MINUTES || '15', 10),
+  },
 };
 
 module.exports = env;
