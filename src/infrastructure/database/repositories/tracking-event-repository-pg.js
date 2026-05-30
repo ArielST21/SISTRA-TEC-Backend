@@ -24,7 +24,7 @@ class TrackingEventRepositoryPg extends TrackingEventRepository {
     return aEntidad(rows[0]);
   }
 
-  async listarPorDonacion(donationId) {
+  async obtenerPorDonacion(donationId) {
     const sql = `
       SELECT * FROM tracking_events
       WHERE donation_id = $1
