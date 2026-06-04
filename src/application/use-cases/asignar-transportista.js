@@ -13,8 +13,8 @@ async function asignarTransportista(
     throw error;
   }
 
-  if (donacion.status !== ESTADOS_DONACION.CLASIFICADO) {
-    const error = new Error('Solo se puede asignar un transportista a donaciones en estado "clasificado"');
+  if (donacion.status !== ESTADOS_DONACION.RECIBIDO) {
+    const error = new Error('Solo se puede asignar un transportista a donaciones en estado "recibido"');
     error.statusCode = 409;
     error.codigo = 'ESTADO_NO_ASIGNABLE';
     error.expose = true;

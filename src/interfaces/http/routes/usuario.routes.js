@@ -7,6 +7,8 @@ const {
   postAdmin,
   postTransporter,
   patchActive,
+  patchUser,
+  getTransportersTracking,
 } = require('../controllers/usuario.controller');
 const {
   reglasActualizarPerfil,
@@ -252,5 +254,63 @@ router.post('/transporter', autenticar, autorizar('admin'), reglasCrearStaff, va
  *         $ref: '#/components/responses/ErrorServidor'
  */
 router.patch('/:id/active', autenticar, autorizar('admin'), reglasCambiarActivo, validar, patchActive);
+
+/**
+ * @swagger
+ * /users/{id}:
+ *   patch:
+ *     summary: Editar datos de un usuario (admin)
+ *     tags: [Administrador]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               fullName: { type: string }
+ *               email: { type: string, format: email }
+ *               phone: { type: string, pattern: '^\d{8}$' }
+ *               vehicle: { type: string, nullable: true }
+ *     responses:
+ *       200:
+ *         description: Usuario actualizado
+ *       401:
+ *         $ref: '#/components/responses/NoAutenticado'
+ *       403:
+ *         $ref: '#/components/responses/Prohibido'
+ *       404:
+ *         $ref: '#/components/responses/NoEncontrado'
+ *       500:
+ *         $ref: '#/components/responses/ErrorServidor'
+ */
+router.patch('/:id', autenticar, autorizar('admin'), reglasActualizarPerfil, validar, patchUser);
+
+/**
+ * @swagger
+ * /users/transporters/tracking:
+ *   get:
+ *     summary: Seguimiento de todos los transportistas con sus asignaciones (admin)
+ *     tags: [Administrador]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lista de transportistas con sus asignaciones activas
+ *       401:
+ *         $ref: '#/components/responses/NoAutenticado'
+ *       403:
+ *         $ref: '#/components/responses/Prohibido'
+ *       500:
+ *         $ref: '#/components/responses/ErrorServidor'
+ */
+router.get('/transporters/tracking', autenticar, autorizar('admin'), getTransportersTracking);
 
 module.exports = router;

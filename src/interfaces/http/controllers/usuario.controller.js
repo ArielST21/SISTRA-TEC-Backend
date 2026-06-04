@@ -6,9 +6,11 @@ const { crearUsuarioStaff } = require('../../../application/use-cases/crear-usua
 const { cambiarEstadoActivo } = require('../../../application/use-cases/cambiar-estado-activo');
 const { ROLES } = require('../../../domain/entities/rol-usuario');
 const UsuarioRepositoryPg = require('../../../infrastructure/database/repositories/usuario-repository-pg');
+const AsignacionRepositoryPg = require('../../../infrastructure/database/repositories/asignacion-repository-pg');
 const { exito } = require('../utils/respuesta');
 
 const usuarioRepo = new UsuarioRepositoryPg();
+const asignacionRepo = new AsignacionRepositoryPg();
 
 async function getMe(req, res, next) {
   try {
@@ -63,6 +65,45 @@ async function patchActive(req, res, next) {
   } catch (err) { return next(err); }
 }
 
+async function patchUser(req, res, next) {
+  try {
+    const actualizado = await actualizarPerfil(req.params.id, req.body, usuarioRepo);
+    return res.status(200).json(exito(actualizado, 'Usuario actualizado exitosamente'));
+  } catch (err) { return next(err); }
+}
+
+async function getTransportersTracking(req, res, next) {
+  try {
+    const transportistas = await usuarioRepo.listarTodos({ role: ROLES.TRANSPORTISTA });
+    const resultado = await Promise.all(
+      transportistas.map(async (t) => {
+        const asignaciones = await asignacionRepo.listarPorTransportista(t.id);
+        return {
+          id: t.id,
+          fullName: t.fullName,
+          email: t.email,
+          phone: t.phone,
+          vehicle: t.vehicle,
+          isActive: t.isActive,
+          asignaciones: asignaciones.map((a) => ({
+            asignacionId: a.id,
+            donationId: a.donationId,
+            trackingId: a.donacion?.trackingId ?? '',
+            tipo: a.donacion?.donationTypeName ?? '',
+            donante: a.donacion?.donorName ?? '',
+            origen: a.donacion?.collectionCenterName ?? '',
+            destino: a.destination ?? '',
+            vehiculo: a.vehicleDescription ?? null,
+            estado: a.donacion?.status ?? 'recibido',
+            fechaAsignada: a.assignedAt ?? '',
+          })),
+        };
+      }),
+    );
+    return res.status(200).json(exito(resultado, 'Seguimiento de transportistas obtenido'));
+  } catch (err) { return next(err); }
+}
+
 module.exports = {
   getMe,
   patchMe,
@@ -71,4 +112,6 @@ module.exports = {
   postAdmin,
   postTransporter,
   patchActive,
+  patchUser,
+  getTransportersTracking,
 };

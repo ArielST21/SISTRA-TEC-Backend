@@ -6,7 +6,6 @@ class MetricasRepositoryPg extends MetricasRepository {
     const sqlTotales = `
       SELECT
         COUNT(*) FILTER (WHERE status = 'recibido')    AS recibido,
-        COUNT(*) FILTER (WHERE status = 'clasificado') AS clasificado,
         COUNT(*) FILTER (WHERE status = 'en_transito') AS en_transito,
         COUNT(*) FILTER (WHERE status = 'entregado')   AS entregado,
         COUNT(*) AS total
@@ -37,7 +36,6 @@ class MetricasRepositoryPg extends MetricasRepository {
     return {
       porEstado: {
         recibido: Number(t.recibido),
-        clasificado: Number(t.clasificado),
         enTransito: Number(t.en_transito),
         entregado: Number(t.entregado),
       },

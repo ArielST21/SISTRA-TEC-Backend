@@ -88,48 +88,80 @@ class DonacionRepositoryPg extends DonacionRepository {
   }
 
   async listarConFiltros(filtros = {}) {
-    let sql = `
+    const whereClauses = ['1=1'];
+    const params = [];
+
+    if (filtros.status) {
+      params.push(filtros.status);
+      whereClauses.push(`d.status = $${params.length}`);
+    }
+    if (filtros.collectionCenterId) {
+      params.push(filtros.collectionCenterId);
+      whereClauses.push(`d.collection_center_id = $${params.length}`);
+    }
+    if (filtros.donationTypeId) {
+      params.push(filtros.donationTypeId);
+      whereClauses.push(`d.donation_type_id = $${params.length}`);
+    }
+    if (filtros.trackingId) {
+      params.push(`%${filtros.trackingId}%`);
+      whereClauses.push(`d.tracking_id ILIKE $${params.length}`);
+    }
+    if (filtros.donorName) {
+      params.push(`%${filtros.donorName}%`);
+      whereClauses.push(`u.full_name ILIKE $${params.length}`);
+    }
+    if (filtros.search) {
+      params.push(`%${filtros.search}%`);
+      whereClauses.push(`(d.tracking_id ILIKE $${params.length} OR u.full_name ILIKE $${params.length})`);
+    }
+
+    const where = whereClauses.join(' AND ');
+
+    const baseSql = `
+      FROM donations d
+      JOIN users u ON u.id = d.donor_id
+      JOIN donation_types dt ON dt.id = d.donation_type_id
+      JOIN collection_centers cc ON cc.id = d.collection_center_id
+      WHERE ${where}
+    `;
+
+    const { rows: countRows } = await ejecutar(`SELECT COUNT(*) AS total ${baseSql}`, params);
+    const total = parseInt(countRows[0].total, 10);
+
+    const pagina = Math.max(1, parseInt(filtros.pagina, 10) || 1);
+    const porPagina = Math.min(100, Math.max(1, parseInt(filtros.porPagina, 10) || 50));
+    const offset = (pagina - 1) * porPagina;
+
+    params.push(porPagina, offset);
+    const dataSql = `
       SELECT d.*,
              u.full_name AS donor_name,
              u.email AS donor_email,
              dt.nombre AS donation_type_name,
              cc.nombre AS collection_center_name
-      FROM donations d
-      JOIN users u ON u.id = d.donor_id
-      JOIN donation_types dt ON dt.id = d.donation_type_id
-      JOIN collection_centers cc ON cc.id = d.collection_center_id
-      WHERE 1=1
+      ${baseSql}
+      ORDER BY d.created_at DESC
+      LIMIT $${params.length - 1} OFFSET $${params.length}
     `;
-    const params = [];
-    if (filtros.status) {
-      params.push(filtros.status);
-      sql += ` AND d.status = $${params.length}`;
-    }
-    if (filtros.collectionCenterId) {
-      params.push(filtros.collectionCenterId);
-      sql += ` AND d.collection_center_id = $${params.length}`;
-    }
-    if (filtros.donationTypeId) {
-      params.push(filtros.donationTypeId);
-      sql += ` AND d.donation_type_id = $${params.length}`;
-    }
-    if (filtros.trackingId) {
-      params.push(`%${filtros.trackingId}%`);
-      sql += ` AND d.tracking_id ILIKE $${params.length}`;
-    }
-    if (filtros.donorName) {
-      params.push(`%${filtros.donorName}%`);
-      sql += ` AND u.full_name ILIKE $${params.length}`;
-    }
-    sql += ' ORDER BY d.created_at DESC';
-    const { rows } = await ejecutar(sql, params);
-    return rows.map((f) => ({
+    const { rows } = await ejecutar(dataSql, params);
+    const items = rows.map((f) => ({
       ...aEntidad(f),
       donorName: f.donor_name,
       donorEmail: f.donor_email,
       donationTypeName: f.donation_type_name,
       collectionCenterName: f.collection_center_name,
     }));
+
+    return {
+      items,
+      paginacion: {
+        pagina,
+        porPagina,
+        total,
+        totalPaginas: Math.ceil(total / porPagina) || 1,
+      },
+    };
   }
 
   async buscarPorIdEnriquecida(id) {
@@ -165,11 +197,18 @@ class DonacionRepositoryPg extends DonacionRepository {
              u.full_name AS donor_name,
              dt.nombre AS donation_type_name,
              cc.nombre AS collection_center_name,
-             cc.direccion AS collection_center_address
+             cc.direccion AS collection_center_address,
+             da.transporter_id AS assignment_transporter_id,
+             da.vehicle_description AS assignment_vehicle,
+             da.destination AS assignment_destination,
+             da.assigned_at AS assignment_assigned_at,
+             t.full_name AS transporter_name
       FROM donations d
       JOIN users u ON u.id = d.donor_id
       JOIN donation_types dt ON dt.id = d.donation_type_id
       JOIN collection_centers cc ON cc.id = d.collection_center_id
+      LEFT JOIN donation_assignments da ON da.donation_id = d.id
+      LEFT JOIN users t ON t.id = da.transporter_id
       WHERE d.tracking_id = $1
       LIMIT 1
     `;
@@ -181,6 +220,10 @@ class DonacionRepositoryPg extends DonacionRepository {
       donationTypeName: rows[0].donation_type_name,
       collectionCenterName: rows[0].collection_center_name,
       collectionCenterAddress: rows[0].collection_center_address,
+      transporterName: rows[0].transporter_name,
+      vehicleDescription: rows[0].assignment_vehicle,
+      destination: rows[0].assignment_destination,
+      assignedAt: rows[0].assignment_assigned_at,
     };
   }
 
@@ -212,7 +255,6 @@ class DonacionRepositoryPg extends DonacionRepository {
     const sql = `
       SELECT
         COUNT(*) FILTER (WHERE status = 'recibido')    AS recibido,
-        COUNT(*) FILTER (WHERE status = 'clasificado') AS clasificado,
         COUNT(*) FILTER (WHERE status = 'en_transito') AS en_transito,
         COUNT(*) FILTER (WHERE status = 'entregado')   AS entregado,
         COUNT(*) AS total

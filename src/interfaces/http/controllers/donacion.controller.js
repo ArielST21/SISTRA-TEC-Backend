@@ -15,6 +15,7 @@ const CentroAcopioRepositoryPg = require('../../../infrastructure/database/repos
 const TrackingEventRepositoryPg = require('../../../infrastructure/database/repositories/tracking-event-repository-pg');
 const AsignacionRepositoryPg = require('../../../infrastructure/database/repositories/asignacion-repository-pg');
 const UsuarioRepositoryPg = require('../../../infrastructure/database/repositories/usuario-repository-pg');
+const { enviarCodigoDonacion } = require('../../../infrastructure/email/email-service');
 const { exito } = require('../utils/respuesta');
 
 const donacionRepo = new DonacionRepositoryPg();
@@ -33,6 +34,20 @@ async function createDonacion(req, res, next) {
       donorId,
       { donacionRepo, tipoDonacionRepo, centroAcopioRepo, trackingEventRepo },
     );
+
+    usuarioRepo.buscarPorId(donorId).then((donante) => {
+      if (!donante?.email) return;
+      return enviarCodigoDonacion({
+        destinatario: donante.email,
+        nombre: donante.fullName,
+        trackingId: donacion.trackingId,
+        tipo: donacion.donationTypeName,
+        centro: donacion.collectionCenterName,
+      });
+    }).catch((err) => {
+      console.error('No se pudo enviar el correo del código de seguimiento:', err.message);
+    });
+
     return res.status(201).json(exito(donacion, 'Donación registrada exitosamente'));
   } catch (err) {
     return next(err);
@@ -55,7 +70,9 @@ async function getDonacion(req, res, next) {
 
 async function trackDonacion(req, res, next) {
   try {
-    const donacion = await consultarTracking(req.params.trackingId, donacionRepo);
+    const donacion = await consultarTracking(req.params.trackingId, donacionRepo, {
+      autenticado: Boolean(req.usuario),
+    });
     return res.status(200).json(exito(donacion, 'Donación encontrada'));
   } catch (err) { return next(err); }
 }
@@ -68,23 +85,12 @@ async function getAllDonaciones(req, res, next) {
       donationTypeId: req.query.donationTypeId ? Number(req.query.donationTypeId) : undefined,
       trackingId: req.query.trackingId,
       donorName: req.query.donorName,
+      search: req.query.search,
+      pagina: req.query.pagina,
+      porPagina: req.query.porPagina,
     };
-    const donaciones = await listarDonaciones(filtros, donacionRepo);
-    return res.status(200).json(exito(donaciones, 'Donaciones obtenidas exitosamente'));
-  } catch (err) { return next(err); }
-}
-
-async function classifyDonacion(req, res, next) {
-  try {
-    const donacion = await cambiarEstadoDonacion(
-      {
-        donacionId: req.params.id,
-        nuevoEstado: ESTADOS_DONACION.CLASIFICADO,
-        usuarioId: req.usuario.id,
-      },
-      { donacionRepo, trackingEventRepo },
-    );
-    return res.status(200).json(exito(donacion, 'Donación clasificada exitosamente'));
+    const resultado = await listarDonaciones(filtros, donacionRepo);
+    return res.status(200).json(exito(resultado, 'Donaciones obtenidas exitosamente'));
   } catch (err) { return next(err); }
 }
 
@@ -168,7 +174,6 @@ module.exports = {
   getDonacion,
   trackDonacion,
   getAllDonaciones,
-  classifyDonacion,
   transitDonacion,
   deliverDonacion,
   assignTransportista,

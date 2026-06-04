@@ -7,7 +7,7 @@ function ofuscarNombreDonante(nombreCompleto) {
   return `${primerNombre} ${inicialApellido}.`;
 }
 
-async function consultarTracking(trackingId, donacionRepo) {
+async function consultarTracking(trackingId, donacionRepo, { autenticado = false } = {}) {
   const donacion = await donacionRepo.buscarPorTrackingIdEnriquecida(trackingId);
 
   if (!donacion) {
@@ -21,7 +21,8 @@ async function consultarTracking(trackingId, donacionRepo) {
   return {
     ...donacion,
     donorId: undefined,
-    donorName: ofuscarNombreDonante(donacion.donorName),
+    donorName: autenticado ? donacion.donorName : ofuscarNombreDonante(donacion.donorName),
+    transporterName: autenticado ? donacion.transporterName : ofuscarNombreDonante(donacion.transporterName),
   };
 }
 

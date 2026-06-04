@@ -5,7 +5,6 @@ const {
   getDonacion,
   trackDonacion,
   getAllDonaciones,
-  classifyDonacion,
   transitDonacion,
   deliverDonacion,
   assignTransportista,
@@ -14,7 +13,7 @@ const {
 } = require('../controllers/donacion.controller');
 const { reglasRegistroDonacion, reglasAsignarTransportista } = require('../../validators/donacion.validator');
 const { validar } = require('../middlewares/validar.middleware');
-const { autenticar } = require('../middlewares/auth.middleware');
+const { autenticar, autenticarOpcional } = require('../middlewares/auth.middleware');
 const { autorizar } = require('../middlewares/roles.middleware');
 
 const router = Router();
@@ -182,7 +181,7 @@ router.get('/mine', autenticar, autorizar('donor'), getMisDonaciones);
  *       500:
  *         $ref: '#/components/responses/ErrorServidor'
  */
-router.get('/track/:trackingId', trackDonacion);
+router.get('/track/:trackingId', autenticarOpcional, trackDonacion);
 
 /**
  * @swagger
@@ -322,39 +321,9 @@ router.get('/:id/tracking', autenticar, getDonacionTracking);
 
 /**
  * @swagger
- * /donations/{id}/classify:
- *   patch:
- *     summary: Clasificar donación (admin) — pasa de recibido a clasificado
- *     tags:
- *       - Administrador
- *     security:
- *       - BearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: string, format: uuid }
- *     responses:
- *       200:
- *         description: Donación clasificada
- *       401:
- *         $ref: '#/components/responses/NoAutenticado'
- *       403:
- *         $ref: '#/components/responses/Prohibido'
- *       404:
- *         $ref: '#/components/responses/NoEncontrado'
- *       409:
- *         description: Transición de estado inválida
- *       500:
- *         $ref: '#/components/responses/ErrorServidor'
- */
-router.patch('/:id/classify', autenticar, autorizar('admin'), classifyDonacion);
-
-/**
- * @swagger
  * /donations/{id}/assign:
  *   post:
- *     summary: Asignar un transportista a una donación clasificada (admin)
+ *     summary: Asignar un transportista a una donación recibida (admin)
  *     tags:
  *       - Administrador
  *     security:

@@ -17,7 +17,7 @@ Permite rastrear en tiempo real el ciclo de vida completo de cada donación:
 desde la recepción hasta la entrega final al beneficiario.
 
 ### Ciclo de vida de una donación
-\`RECIBIDO → CLASIFICADO → EN_TRANSITO → ENTREGADO\`
+\`RECIBIDO → EN_TRANSITO → ENTREGADO\`
 
 Las transiciones son **secuenciales y unidireccionales**. Una donación
 en estado \`ENTREGADO\` queda bloqueada permanentemente.
@@ -66,7 +66,7 @@ Los tokens se obtienen en \`POST /auth/login\` y se renuevan en \`POST /auth/ref
         // ----------------------------------------------------------------
         EstadoDonacionEnum: {
           type: 'string',
-          enum: ['recibido', 'clasificado', 'en_transito', 'entregado'],
+          enum: ['recibido', 'en_transito', 'entregado'],
           description: 'Estado del ciclo de vida de la donación. Solo avanza, nunca retrocede.',
           example: 'recibido',
         },
@@ -310,7 +310,7 @@ Los tokens se obtienen en \`POST /auth/login\` y se renuevan en \`POST /auth/ref
 
         DonacionAsignacion: {
           type: 'object',
-          description: 'Asignación de una donación clasificada a un transportista.',
+          description: 'Asignación de una donación recibida a un transportista.',
           properties: {
             id: {
               type: 'string',
