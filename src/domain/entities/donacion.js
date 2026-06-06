@@ -14,7 +14,7 @@ class Donacion {
     trackingId,
     descripcion,
     pickupAddress = null,
-    estimatedDeliveryDate,
+    estimatedDeliveryDate = null,
     deliveredAt = null,
     status = ESTADOS_DONACION.RECIBIDO,
     createdAt = null,
@@ -23,7 +23,6 @@ class Donacion {
     if (!donationTypeId) throw new Error('Donacion: donationTypeId es obligatorio');
     if (!collectionCenterId) throw new Error('Donacion: collectionCenterId es obligatorio');
     if (!descripcion) throw new Error('Donacion: descripcion es obligatoria');
-    if (!estimatedDeliveryDate) throw new Error('Donacion: estimatedDeliveryDate es obligatoria');
     if (!esEstadoValido(status)) throw new Error(`Donacion: status inválido (${status})`);
 
     this.id = id;

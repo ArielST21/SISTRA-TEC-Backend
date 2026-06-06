@@ -24,14 +24,22 @@ class TrackingEventRepositoryPg extends TrackingEventRepository {
     return aEntidad(rows[0]);
   }
 
-  async obtenerPorDonacion(donationId) {
+  async listarPorDonacion(donationId) {
     const sql = `
-      SELECT * FROM tracking_events
-      WHERE donation_id = $1
-      ORDER BY created_at ASC
+      SELECT te.*,
+             u.full_name AS changed_by_name,
+             u.role AS changed_by_role
+      FROM tracking_events te
+      LEFT JOIN users u ON u.id = te.changed_by
+      WHERE te.donation_id = $1
+      ORDER BY te.created_at ASC
     `;
     const { rows } = await ejecutar(sql, [donationId]);
-    return rows.map(aEntidad);
+    return rows.map((f) => ({
+      ...aEntidad(f),
+      changedByName: f.changed_by_name,
+      changedByRole: f.changed_by_role,
+    }));
   }
 }
 

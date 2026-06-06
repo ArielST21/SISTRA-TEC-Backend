@@ -38,4 +38,70 @@ const reglasRegistro = [
     }),
 ];
 
-module.exports = { reglasRegistro };
+const reglasLogin = [
+  body('email')
+    .trim()
+    .notEmpty().withMessage('El correo electrónico es obligatorio')
+    .isEmail().withMessage('Debe ser un correo electrónico válido')
+    .normalizeEmail(),
+
+  body('password')
+    .notEmpty().withMessage('La contraseña es obligatoria'),
+];
+
+const reglasForgotPassword = [
+  body('email')
+    .trim()
+    .notEmpty().withMessage('El correo electrónico es obligatorio')
+    .isEmail().withMessage('Debe ser un correo electrónico válido')
+    .normalizeEmail(),
+];
+
+const reglasVerificarCodigo = [
+  body('email')
+    .trim()
+    .notEmpty().withMessage('El correo electrónico es obligatorio')
+    .isEmail().withMessage('Debe ser un correo electrónico válido')
+    .normalizeEmail(),
+
+  body('code')
+    .trim()
+    .notEmpty().withMessage('El código es obligatorio')
+    .matches(/^\d{6}$/).withMessage('El código debe tener exactamente 6 dígitos numéricos'),
+];
+
+const reglasResetPassword = [
+  body('email')
+    .trim()
+    .notEmpty().withMessage('El correo electrónico es obligatorio')
+    .isEmail().withMessage('Debe ser un correo electrónico válido')
+    .normalizeEmail(),
+
+  body('code')
+    .trim()
+    .notEmpty().withMessage('El código es obligatorio')
+    .matches(/^\d{6}$/).withMessage('El código debe tener exactamente 6 dígitos numéricos'),
+
+  body('newPassword')
+    .notEmpty().withMessage('La nueva contraseña es obligatoria')
+    .isLength({ min: 8 }).withMessage('La contraseña debe tener mínimo 8 caracteres')
+    .matches(/[A-Z]/).withMessage('La contraseña debe tener al menos 1 letra mayúscula')
+    .matches(/[0-9]/).withMessage('La contraseña debe tener al menos 1 número'),
+
+  body('confirmPassword')
+    .notEmpty().withMessage('La confirmación de contraseña es obligatoria')
+    .custom((valor, { req }) => {
+      if (valor !== req.body.newPassword) {
+        throw new Error('Las contraseñas no coinciden');
+      }
+      return true;
+    }),
+];
+
+module.exports = {
+  reglasRegistro,
+  reglasLogin,
+  reglasForgotPassword,
+  reglasVerificarCodigo,
+  reglasResetPassword,
+};

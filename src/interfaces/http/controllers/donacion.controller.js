@@ -1,80 +1,182 @@
-const obtenerDonacionPorTracking = require('../../../application/use-cases/obtener-donacion-por-tracking');
+const { registrarDonacion } = require('../../../application/use-cases/registrar-donacion');
+const { listarMisDonaciones } = require('../../../application/use-cases/listar-mis-donaciones');
+const { obtenerDonacion } = require('../../../application/use-cases/obtener-donacion');
+const { consultarTracking } = require('../../../application/use-cases/consultar-tracking');
+const { listarDonaciones } = require('../../../application/use-cases/listar-donaciones');
+const { cambiarEstadoDonacion } = require('../../../application/use-cases/cambiar-estado-donacion');
+const { asignarTransportista } = require('../../../application/use-cases/asignar-transportista');
+const { cancelarDonacion } = require('../../../application/use-cases/cancelar-donacion');
+const { obtenerTrackingDonacion } = require('../../../application/use-cases/obtener-tracking-donacion');
+const { ESTADOS_DONACION } = require('../../../domain/entities/estado-donacion');
+
 const DonacionRepositoryPg = require('../../../infrastructure/database/repositories/donacion-repository-pg');
+const TipoDonacionRepositoryPg = require('../../../infrastructure/database/repositories/tipo-donacion-repository-pg');
+const CentroAcopioRepositoryPg = require('../../../infrastructure/database/repositories/centro-acopio-repository-pg');
 const TrackingEventRepositoryPg = require('../../../infrastructure/database/repositories/tracking-event-repository-pg');
-const { exito, fallo } = require('../utils/respuesta');
-const env = require('../../../config/env');
+const AsignacionRepositoryPg = require('../../../infrastructure/database/repositories/asignacion-repository-pg');
+const UsuarioRepositoryPg = require('../../../infrastructure/database/repositories/usuario-repository-pg');
+const { enviarCodigoDonacion } = require('../../../infrastructure/email/email-service');
+const { exito } = require('../utils/respuesta');
 
-const donacionRepository = new DonacionRepositoryPg();
-const trackingEventRepository = new TrackingEventRepositoryPg();
+const donacionRepo = new DonacionRepositoryPg();
+const tipoDonacionRepo = new TipoDonacionRepositoryPg();
+const centroAcopioRepo = new CentroAcopioRepositoryPg();
+const trackingEventRepo = new TrackingEventRepositoryPg();
+const asignacionRepo = new AsignacionRepositoryPg();
+const usuarioRepo = new UsuarioRepositoryPg();
 
-/**
- * Controlador: Rastrear donación por código público (HU-02)
- *
- * Endpoint público que permite consultar el estado de una donación
- * sin necesidad de autenticación. Devuelve toda la información necesaria
- * para mostrar la trazabilidad en tiempo real en el frontend.
- *
- * Reglas:
- * - No requiere autenticación
- * - El trackingId es case-insensitive y se normaliza a mayúsculas
- * - Devuelve 404 si la donación no existe
- * - Incluye la bitácora completa de cambios de estado
- */
-async function rastrear(req, res) {
+async function createDonacion(req, res, next) {
   try {
-    const { trackingId } = req.params;
-
-    const { donacion, eventos } = await obtenerDonacionPorTracking(
-      trackingId,
-      donacionRepository,
-      trackingEventRepository,
+    const { donationTypeId, collectionCenterId, descripcion, pickupAddress, estimatedDeliveryDate } = req.body;
+    const donorId = req.usuario.id;
+    const donacion = await registrarDonacion(
+      { donationTypeId, collectionCenterId, descripcion, pickupAddress, estimatedDeliveryDate },
+      donorId,
+      { donacionRepo, tipoDonacionRepo, centroAcopioRepo, trackingEventRepo },
     );
 
-    // Mapear respuesta al formato esperado por el frontend
-    // Incluir solo los campos públicos (no exponer IDs internos ni datos sensibles)
-    const respuesta = {
-      codigo: donacion.trackingId,
-      estado: donacion.status,
-      descripcion: donacion.descripcion,
-      fechaRegistro: donacion.createdAt,
-      fechaEstimadaEntrega: donacion.estimatedDeliveryDate,
-      fechaEntregado: donacion.deliveredAt,
-      eventos: eventos.map((evt) => ({
-        estado: evt.toStatus,
-        estadoAnterior: evt.fromStatus,
-        fecha: evt.createdAt,
-      })),
-    };
+    usuarioRepo.buscarPorId(donorId).then((donante) => {
+      if (!donante?.email) return;
+      return enviarCodigoDonacion({
+        destinatario: donante.email,
+        nombre: donante.fullName,
+        trackingId: donacion.trackingId,
+        tipo: donacion.donationTypeName,
+        centro: donacion.collectionCenterName,
+      });
+    }).catch((err) => {
+      console.error('No se pudo enviar el correo del código de seguimiento:', err.message);
+    });
 
-    return res.status(200).json(
-      exito(respuesta, 'Donación encontrada exitosamente'),
-    );
+    return res.status(201).json(exito(donacion, 'Donación registrada exitosamente'));
   } catch (err) {
-    // Errores validados: tienen statusCode y codigo definidos
-    if (err.expose || err.statusCode) {
-      const statusCode = err.statusCode || 400;
-      const detalle = env.esProduccion ? null : err.message;
-
-      return res.status(statusCode).json(
-        fallo(
-          err.message,
-          err.codigo || 'ERROR_CONSULTA',
-          detalle,
-        ),
-      );
-    }
-
-    // Error inesperado: no exponer detalles en producción
-    console.error('[ERROR] rastrear:', err.message);
-
-    return res.status(500).json(
-      fallo(
-        'Error al consultar la donación',
-        'ERROR_INTERNO',
-        env.esProduccion ? null : err.message,
-      ),
-    );
+    return next(err);
   }
 }
 
-module.exports = { rastrear };
+async function getMisDonaciones(req, res, next) {
+  try {
+    const donaciones = await listarMisDonaciones(req.usuario.id, donacionRepo);
+    return res.status(200).json(exito(donaciones, 'Donaciones obtenidas exitosamente'));
+  } catch (err) { return next(err); }
+}
+
+async function getDonacion(req, res, next) {
+  try {
+    const donacion = await obtenerDonacion(req.params.id, req.usuario.id, donacionRepo);
+    return res.status(200).json(exito(donacion, 'Donación obtenida exitosamente'));
+  } catch (err) { return next(err); }
+}
+
+async function trackDonacion(req, res, next) {
+  try {
+    const donacion = await consultarTracking(req.params.trackingId, donacionRepo, {
+      autenticado: Boolean(req.usuario),
+    });
+    return res.status(200).json(exito(donacion, 'Donación encontrada'));
+  } catch (err) { return next(err); }
+}
+
+async function getAllDonaciones(req, res, next) {
+  try {
+    const filtros = {
+      status: req.query.status,
+      collectionCenterId: req.query.collectionCenterId ? Number(req.query.collectionCenterId) : undefined,
+      donationTypeId: req.query.donationTypeId ? Number(req.query.donationTypeId) : undefined,
+      trackingId: req.query.trackingId,
+      donorName: req.query.donorName,
+      search: req.query.search,
+      pagina: req.query.pagina,
+      porPagina: req.query.porPagina,
+    };
+    const resultado = await listarDonaciones(filtros, donacionRepo);
+    return res.status(200).json(exito(resultado, 'Donaciones obtenidas exitosamente'));
+  } catch (err) { return next(err); }
+}
+
+async function transitDonacion(req, res, next) {
+  try {
+    const donacion = await cambiarEstadoDonacion(
+      {
+        donacionId: req.params.id,
+        nuevoEstado: ESTADOS_DONACION.EN_TRANSITO,
+        usuarioId: req.usuario.id,
+        validarPropiedad: async (don) => {
+          const asignacion = await asignacionRepo.buscarPorDonacion(don.id);
+          if (!asignacion || asignacion.transporterId !== req.usuario.id) {
+            const error = new Error('No tiene una asignación para esta donación');
+            error.statusCode = 403;
+            error.codigo = 'NO_ASIGNADO';
+            error.expose = true;
+            throw error;
+          }
+        },
+      },
+      { donacionRepo, trackingEventRepo },
+    );
+    return res.status(200).json(exito(donacion, 'Donación marcada como en tránsito'));
+  } catch (err) { return next(err); }
+}
+
+async function deliverDonacion(req, res, next) {
+  try {
+    const donacion = await cambiarEstadoDonacion(
+      {
+        donacionId: req.params.id,
+        nuevoEstado: ESTADOS_DONACION.ENTREGADO,
+        usuarioId: req.usuario.id,
+        validarPropiedad: async (don) => {
+          if (req.usuario.role === 'admin') return;
+          const asignacion = await asignacionRepo.buscarPorDonacion(don.id);
+          if (!asignacion || asignacion.transporterId !== req.usuario.id) {
+            const error = new Error('No tiene una asignación para esta donación');
+            error.statusCode = 403;
+            error.codigo = 'NO_ASIGNADO';
+            error.expose = true;
+            throw error;
+          }
+        },
+      },
+      { donacionRepo, trackingEventRepo },
+    );
+    return res.status(200).json(exito(donacion, 'Donación marcada como entregada'));
+  } catch (err) { return next(err); }
+}
+
+async function assignTransportista(req, res, next) {
+  try {
+    const { transporterId, destination } = req.body;
+    const asignacion = await asignarTransportista(
+      { donacionId: req.params.id, transporterId, destination },
+      { donacionRepo, usuarioRepo, asignacionRepo },
+    );
+    return res.status(201).json(exito(asignacion, 'Transportista asignado exitosamente'));
+  } catch (err) { return next(err); }
+}
+
+async function deleteDonacion(req, res, next) {
+  try {
+    await cancelarDonacion(req.params.id, req.usuario.id, donacionRepo);
+    return res.status(200).json(exito(null, 'Donación cancelada exitosamente'));
+  } catch (err) { return next(err); }
+}
+
+async function getDonacionTracking(req, res, next) {
+  try {
+    const eventos = await obtenerTrackingDonacion(req.params.id, { donacionRepo, trackingEventRepo });
+    return res.status(200).json(exito(eventos, 'Bitácora de eventos obtenida'));
+  } catch (err) { return next(err); }
+}
+
+module.exports = {
+  createDonacion,
+  getMisDonaciones,
+  getDonacion,
+  trackDonacion,
+  getAllDonaciones,
+  transitDonacion,
+  deliverDonacion,
+  assignTransportista,
+  deleteDonacion,
+  getDonacionTracking,
+};

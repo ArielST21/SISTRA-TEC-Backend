@@ -29,4 +29,26 @@ function autenticar(req, res, next) {
   }
 }
 
-module.exports = { autenticar };
+function autenticarOpcional(req, res, next) {
+  const header = req.headers.authorization;
+
+  if (!header || !header.startsWith('Bearer ')) {
+    return next();
+  }
+
+  const token = header.slice(7).trim();
+  try {
+    const payload = verificarAccessToken(token);
+    req.usuario = {
+      id: payload.sub,
+      email: payload.email,
+      role: payload.role,
+      collectionCenterId: payload.collectionCenterId || null,
+    };
+  } catch {
+    // Token inválido o expirado: tratamos la petición como anónima
+  }
+  return next();
+}
+
+module.exports = { autenticar, autenticarOpcional };
