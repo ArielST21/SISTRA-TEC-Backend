@@ -25,8 +25,10 @@ const reglasRegistroDonacion = [
     .optional({ nullable: true, checkFalsy: true })
     .isDate({ format: 'YYYY-MM-DD' }).withMessage('La fecha estimada de entrega debe tener el formato YYYY-MM-DD')
     .custom((valor) => {
-      if (new Date(valor) <= new Date()) {
-        throw new Error('La fecha estimada de entrega debe ser futura');
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+      if (new Date(valor) < hoy) {
+        throw new Error('La fecha estimada de entrega debe ser hoy o futura');
       }
       return true;
     }),
