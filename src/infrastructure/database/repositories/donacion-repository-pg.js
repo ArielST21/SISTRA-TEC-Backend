@@ -123,6 +123,7 @@ class DonacionRepositoryPg extends DonacionRepository {
       JOIN users u ON u.id = d.donor_id
       JOIN donation_types dt ON dt.id = d.donation_type_id
       JOIN collection_centers cc ON cc.id = d.collection_center_id
+      LEFT JOIN donation_assignments da ON da.donation_id = d.id
       WHERE ${where}
     `;
 
@@ -139,7 +140,8 @@ class DonacionRepositoryPg extends DonacionRepository {
              u.full_name AS donor_name,
              u.email AS donor_email,
              dt.nombre AS donation_type_name,
-             cc.nombre AS collection_center_name
+             cc.nombre AS collection_center_name,
+             (da.id IS NOT NULL) AS is_assigned
       ${baseSql}
       ORDER BY d.created_at DESC
       LIMIT $${params.length - 1} OFFSET $${params.length}
@@ -151,6 +153,7 @@ class DonacionRepositoryPg extends DonacionRepository {
       donorEmail: f.donor_email,
       donationTypeName: f.donation_type_name,
       collectionCenterName: f.collection_center_name,
+      isAssigned: f.is_assigned,
     }));
 
     return {
