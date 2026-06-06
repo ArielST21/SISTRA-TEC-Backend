@@ -225,6 +225,8 @@ router.post('/register', limitadorAuth, reglasRegistro, validar, register);
  */
 router.post('/login', limitadorAuth, reglasLogin, validar, login);
 
+// No se documenta /auth/logout porque el logout es responsabilidad del frontend:
+
 /**
  * @swagger
  * /auth/refresh:
